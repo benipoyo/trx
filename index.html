@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Touhou Replay Explorer</title>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+    integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.32.0/js/jquery.tablesorter.min.js"
+    integrity="sha512-O/JP2r8BG27p5NOtVhwqsSokAwEP5RwYgvEzU9G6AfNjLYqyt2QT8jqU1XrXCiezS50Qp1i3ZtCQWkHZIRulGA=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.32.0/js/widgets/widget-filter.min.js"
+    integrity="sha512-Z14vNlMoEXZRc2CcGbvyHx/if3xLvyu+HZXoScG0WZzb12dnsJGh653uVZalvGPmuFkbwWWsk5hO/Qd/zTYMDw=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.32.0/css/theme.blue.min.css"
+    integrity="sha512-jJ9r3lTLaH5XXa9ZOsCQU8kLvxdAVzyTWO/pnzdZrshJQfnw1oevJFpoyCDr7K1lqt1hUgqoxA5e2PctVtlSTg=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="index.css" />
+</head>
+
+<body>
+  <h2 style="text-align: center;">Touhou Replay Explorer</h2>
+  <details id="whats">
+    <summary>What's this?</summary>
+    東方原作STGのリプレイファイルを一覧表示するツールです。<br>
+    お手元のrpyファイルを読み込んで表にします。<br>
+    アップローダーではありません。<br>
+    動作確認はあまりしていませんので（特に後半作品）、何か変かもしれません。
+
+    <h3>対応作品</h3>
+    Touhou 6, 7, 8, 9, 10, 11, 12, 12.8, 13, 14, 15, 16, 17, 18, 20<br>
+    20の詳細表示はありません。
+
+    <h3>使い方</h3>
+    <p>
+      "Files"のボタンでrpyファイルを読み込みます。複数選択も可能。（もしくはボタン上にドラッグ・ドロップでもOK）<br>
+      "Folder"のボタンでフォルダ内のrpyファイルを（サブフォルダ内も含めて）すべて読み込みます。
+      例えば東方紅魔郷フォルダ丸ごととかでもOK。さすがにCドライブ丸ごととかはやめてね。<br>
+      「アップロードしてもよろしいですか」のようなメッセージが出ますが大丈夫です（実際にアップロードされるわけではありません）。<br>
+      フロントエンドで完結しているので、ページを読み込んだ後はオフラインでも動作するはず。<br>
+    </p>
+    <p>
+      リプの数は1000個程度なら余裕だと思います。10000個とかになると重いかも？<br>
+    </p>
+    <p>
+      ソート機能・検索機能がついています。<br>
+      範囲検索（例：<code>2025-10-01 to 2026-03-31</code>）、
+      正規表現（例：<code>/NN$/</code>）などが使えます。<br>
+      詳しくは<a href="https://mottie.github.io/tablesorter/docs/example-widget-filter.html" target="_blank"
+        referrerpolicy="no-referrer">こちら</a>
+    </p>
+    <p>
+      チェックボックスにチェックを入れて"Remove Selected"ボタンを押すとそのリプがリストから除外されます。"Remove Unselected"ボタンを押すとチェックされていないリプが除外されます。<br>
+      （この機能要る？）
+    </p>
+    <p>
+      読み込み専用なので、ファイルの移動や名前の変更などはできません。（ちょっと不便）<br>
+    </p>
+    <p>
+      ページを再読み込みするとリストは破棄されるので注意。<br>
+      右上のボタンでリストのインポート・エクスポートができます。
+    </p>
+
+    <h3>参考にしたものなど</h3>
+    <ul>
+      <li>
+        <a href="https://mottie.github.io/tablesorter/docs/" target="_blank"
+          referrerpolicy="no-referrer">tablesorter</a>
+        (with Filter widget)
+      </li>
+      表のソート機能・検索機能をつけるjQueryプラグイン。便利すぎる。
+      <li>
+        <a href="https://github.com/32th-System/py-tsadecode" target="_blank"
+          referrerpolicy="no-referrer">tsadecode</a>、
+        <a href="https://github.com/n-rook/thscoreboard" target="_blank" referrerpolicy="no-referrer">thscoreboard</a>
+      </li>
+      rpyファイルのデコード・情報取得のため参考にさせていただきました。大感謝
+      <li>
+        <a href="https://github.com/imo-tikuwa/touhou-local-scoreboards-desktop/releases" target="_blank"
+          referrerpolicy="no-referrer">Touhou Local Scoreboards
+          (デスクトップアプリ版)</a>、
+        <a href="https://chromewebstore.google.com/detail/touhou-local-scoreboards/iaaignablmnnceehbdfbclcbilhpilcn"
+          target="_blank" referrerpolicy="no-referrer">(Chrome拡張機能版)</a>
+      </li>
+      リプレイ管理ツール。趣旨が被ってしまった（ごめんなさい）。高機能なので使ってみてください。
+      <li>
+        <a href="http://www.sue445.net/downloads/" target="_blank"
+          referrerpolicy="no-referrer">東方紅魔郷リプレイビュアー、東方妖々夢リプレイビュアー</a>
+      </li>
+      古のソフト。お世話になりました。
+      <li>
+        <a href="https://www16.big.or.jp/~zun/" target="_blank" referrerpolicy="no-referrer">上海アリス幻樂団</a>
+      </li>
+      いつもお世話になっております。
+    </ul>
+  </details>
+  <br>
+  <div id="port">
+    <div>
+      <label><b>Files:</b></label>
+      <input type="file" id="inputFile" accept=".rpy" multiple />
+      <label><b>Folder:</b></label>
+      <input type="file" id="inputDir" webkitdirectory multiple />
+    </div>
+    <div>
+      <label>Import:</label>
+      <input type="file" id="import" accept=".xml" />
+      <button id="export">Export</button>
+    </div>
+  </div>
+  <br>
+  <div id="download"></div>
+  <div id="count"></div>
+  <button id="removeSelected">Remove Selected</button>
+  <button id="removeUnselected">Remove Unselected</button>
+  <!-- <button id="removeHidden">Remove Hidden</button> -->
+  <table id="table">
+    <thead>
+      <tr>
+        <th width="40px">
+          <label class="checkLabel">
+            <input type="checkbox" id="checkAll" />
+          </label>
+        </th>
+        <th data-placeholder="All">Game</th>
+        <th data-placeholder="Search">File</th>
+        <th width="120px" data-placeholder="Search">Name</th>
+        <th data-placeholder="All">Difficulty</th>
+        <th data-placeholder="All">ShotType</th>
+        <th width="100px" data-placeholder="Search">Score</th>
+        <th data-placeholder="Search">Played</th>
+        <th data-placeholder="Search">Modified</th>
+        <th width="120px" data-placeholder="Search">Details</th>
+        <th data-placeholder="All">Clears</th>
+        <th data-placeholder="All">Thprac</th>
+        <th data-placeholder="Search">Note</th>
+      </tr>
+    </thead>
+    <tbody id="rpyInfo"></tbody>
+  </table>
+  <script src="decode.js"></script>
+  <script src="rpy.js"></script>
+</body>
+
+</html>

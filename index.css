@@ -1,0 +1,62 @@
+body {
+  background-color: lightyellow;
+}
+
+button {
+  cursor: pointer;
+  padding: 3px;
+}
+
+summary {
+  cursor: pointer;
+}
+
+#whats {
+  padding: 5px 10px;
+  border: 1px solid #ccc;
+}
+
+code {
+  background-color: #e6e6e6;
+  padding: 2px;
+}
+
+#inputFile::file-selector-button,
+#inputDir::file-selector-button {
+  cursor: pointer;
+  padding: 10px 15px;
+}
+
+#import::file-selector-button {
+  cursor: pointer;
+}
+
+#port {
+  display: flex;
+  justify-content: space-between;
+}
+
+#count {
+  background-color: white;
+  width: 200px;
+  border: 1px solid #ccc;
+  text-align: center;
+}
+
+.check {
+  cursor: pointer;
+}
+
+.checkLabel {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+}
+
+.stages thead tr th,
+.stages tbody tr td {
+  text-align: right;
+}
