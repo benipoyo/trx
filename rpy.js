@@ -1,10 +1,4 @@
-function toDetails(str) {
-  const s = $("<div>").text(str).html();
-  if (new Blob([s]).size <= 32 && !/\n/.test(s)) return s;
-  return $("<details>").html(s.replace(/\r?\n/g, "<br>")).prop("outerHTML");
-}
-
-async function getRpyHeader(file) {
+async function getRpyInfo(file, path) {
   const rpy = new Uint8Array(await file.arrayBuffer());
   const stages = $(`
     <details>
@@ -16,7 +10,13 @@ async function getRpyHeader(file) {
       </table>
     </details>
   `);
-  switch (new TextDecoder().decode(rpy.slice(0, 4))) {
+  let head = new TextDecoder().decode(rpy.slice(0, 4));
+  const user = userData(rpy);
+  // zun fckery
+  if (head === "t13r" && (user.game === "th14" || (user.game !== "th13" && /(?:^|\/)th14_[^/]*$/.test(path)))) {
+    head = "t14r";
+  }
+  switch (head) {
     case "T6RP": {
       stages.find("thead").html(`
         <tr>
@@ -42,7 +42,6 @@ async function getRpyHeader(file) {
           </tr>
         `);
       }
-      const u = userData(rpy);
       return {
         game: "th6",
         name: $("<div>").text(dat.name).html(),
@@ -52,8 +51,7 @@ async function getRpyHeader(file) {
         date: dat.date,
         stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
         clears: "-",
-        thprac: u.thprac,
-        note: "",
+        thprac: user.thprac,
       };
     }
     case "T7RP": {
@@ -93,7 +91,6 @@ async function getRpyHeader(file) {
           </tr>
         `);
       }
-      const u = userData(rpy);
       return {
         game: "th7",
         name: $("<div>").text(dat.name).html(),
@@ -103,8 +100,7 @@ async function getRpyHeader(file) {
         date: dat.date,
         stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
         clears: "-",
-        thprac: u.thprac,
-        note: "",
+        thprac: user.thprac,
       };
     }
     case "T8RP": {
@@ -144,7 +140,6 @@ async function getRpyHeader(file) {
           </tr>
         `);
       }
-      const u = userData(rpy);
       const spell = dat.spellNo < 0 ? "" : "No." + (dat.spellNo + 1);
       return {
         game: "th8",
@@ -152,11 +147,12 @@ async function getRpyHeader(file) {
         difficulty,
         type,
         score: dat.score * 10,
-        date: u.year + "-" + dat.date + " " + u.time,
+        date: user.year + "-" + dat.date + " " + user.time,
         stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
-        clears: u.clear,
-        thprac: u.thprac,
-        note: toDetails(spell + (spell.length && u.note.length ? "\r\n" : "") + u.note),
+        clears: user.clear,
+        thprac: user.thprac,
+        spell,
+        note: user.note,
       };
     }
     case "T9RP": {
@@ -171,7 +167,7 @@ async function getRpyHeader(file) {
       `);
       const dat = th9(rpy);
       const chara = ["Reimu", "Marisa", "Sakuya", "Youmu", "Reisen", "Cirno", "Lyrica", "Mystia", "Tewi", "Yuuka", "Aya", "Medicine", "Komachi", "Eiki", "Merlin", "Lunasa"];
-      const type = chara[dat.type] + (dat.cpu ? "(CPU)" : "");
+      const type = chara[dat.type] + (dat.cpu ? "CPU" : "");
       const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra"][dat.difficulty];
       for (const i in dat.stages) {
         const j = +i + 1;
@@ -180,12 +176,11 @@ async function getRpyHeader(file) {
             <td>${j < 10 ? j : "VS"}</td>
             <td>${j < 10 ? j in dat.stages ? dat.stages[j][0].score * 10 : "" : dat.stages[i][0].score * 10}</td>
             <td>${j in dat.stages ? dat.stages[j][0].player : ""}</td>
-            <td>${chara[dat.stages[i][1].type] + (dat.stages[i][1].cpu ? "(CPU)" : "")}</td>
+            <td>${chara[dat.stages[i][1].type] + (dat.stages[i][1].cpu ? "CPU" : "")}</td>
             <td>${j < 10 ? j in dat.stages ? dat.stages[j][1].score * 10 : "" : dat.stages[i][1].score * 10}</td>
           </tr>
         `);
       }
-      const u = userData(rpy);
       return {
         game: "th9",
         name: $("<div>").text(dat.name).html(),
@@ -195,8 +190,8 @@ async function getRpyHeader(file) {
         date: dat.date,
         stages: stages.prop("outerHTML").replace(/\s+/g, " "),
         clears: "-",
-        thprac: u.thprac,
-        note: toDetails(u.note),
+        thprac: user.thprac,
+        note: user.note,
       };
     }
     case "t10r": {
@@ -210,7 +205,7 @@ async function getRpyHeader(file) {
         </tr>
       `);
       const dat = th10(rpy);
-      const type = ["ReimuA", "ReimuB", "ReimuC", "MarisaA", "MarisaB", "MarisaC"][dat.type];
+      const type = ["Reimu", "Marisa"][dat.type] + ["A", "B", "C"][dat.sub];
       const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra"][dat.difficulty];
       for (const i in dat.stages) {
         const j = +i + 1;
@@ -228,7 +223,6 @@ async function getRpyHeader(file) {
       if (dat.clears >= 1 && dat.clears <= 6) clears = "(" + dat.clears + ")";
       if (dat.clears == 7) clears = "(Ex)";
       if (dat.clears > 7) clears = "(C)";
-      const u = userData(rpy);
       return {
         game: "th10",
         name: $("<div>").text(dat.name).html(),
@@ -238,8 +232,8 @@ async function getRpyHeader(file) {
         date: dat.date,
         stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
         clears,
-        thprac: u.thprac,
-        note: toDetails(u.note),
+        thprac: user.thprac,
+        note: user.note,
       };
     }
     case "t11r": {
@@ -254,7 +248,7 @@ async function getRpyHeader(file) {
         </tr>
       `);
       const dat = th11(rpy);
-      const type = ["ReimuA", "ReimuB", "ReimuC", "MarisaA", "MarisaB", "MarisaC"][dat.type];
+      const type = ["Reimu", "Marisa"][dat.type] + ["A", "B", "C"][dat.sub];
       const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra"][dat.difficulty];
       for (const i in dat.stages) {
         const j = +i + 1;
@@ -273,7 +267,6 @@ async function getRpyHeader(file) {
       if (dat.clears >= 1 && dat.clears <= 6) clears = "(" + dat.clears + ")";
       if (dat.clears == 7) clears = "(Ex)";
       if (dat.clears > 7) clears = "(C)";
-      const u = userData(rpy);
       return {
         game: "th11",
         name: $("<div>").text(dat.name).html(),
@@ -283,8 +276,8 @@ async function getRpyHeader(file) {
         date: dat.date,
         stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
         clears,
-        thprac: u.thprac,
-        note: toDetails(u.note),
+        thprac: user.thprac,
+        note: user.note,
       };
     }
     case "t12r": {
@@ -300,7 +293,7 @@ async function getRpyHeader(file) {
         </tr>
       `);
       const dat = th12(rpy);
-      const type = ["ReimuA", "ReimuB", "MarisaA", "MarisaB", "SanaeA", "SanaeB"][dat.type];
+      const type = ["Reimu", "Marisa", "Sanae"][dat.type] + ["A", "B"][dat.sub];
       const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra"][dat.difficulty];
       for (const i in dat.stages) {
         const j = +i + 1;
@@ -320,7 +313,6 @@ async function getRpyHeader(file) {
       if (dat.clears >= 1 && dat.clears <= 6) clears = "(" + dat.clears + ")";
       if (dat.clears == 7) clears = "(Ex)";
       if (dat.clears > 7) clears = "(C)";
-      const u = userData(rpy);
       return {
         game: "th12",
         name: $("<div>").text(dat.name).html(),
@@ -330,8 +322,8 @@ async function getRpyHeader(file) {
         date: dat.date,
         stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
         clears,
-        thprac: u.thprac,
-        note: toDetails(u.note),
+        thprac: user.thprac,
+        note: user.note,
       };
     }
     case "128r": {
@@ -369,7 +361,6 @@ async function getRpyHeader(file) {
       if (dat.clears >= 1 && dat.clears <= 15) clears = "(" + st[dat.clears - 1].slice(3) + ")";
       if (dat.clears == 16) clears = "(Ex)";
       if (dat.clears > 16) clears = "(C)";
-      const u = userData(rpy);
       return {
         game: "th128",
         name: $("<div>").text(dat.name).html(),
@@ -379,112 +370,108 @@ async function getRpyHeader(file) {
         date: dat.date,
         stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
         clears,
-        thprac: u.thprac,
-        note: toDetails(u.note),
+        thprac: user.thprac,
+        note: user.note,
       };
     }
     case "t13r": {
-      const u = userData(rpy);
-      if (u.game === "th13") {
-        stages.find("thead").html(`
+      stages.find("thead").html(`
+        <tr>
+          <th></th>
+          <th>Score</th>
+          <th>PIV</th>
+          <th>Graze</th>
+          <th>Power</th>
+          <th>P</th>
+          <th>B</th>
+          <th>Trance</th>
+        </tr>
+      `);
+      const dat = th13(rpy);
+      const type = ["Reimu", "Marisa", "Sanae", "Youmu"][dat.type];
+      const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra", "Overdrive"][dat.difficulty];
+      const ext = [8, 10, 12, 15, 18, 20, 25];
+      for (const i in dat.stages) {
+        const j = +i + 1;
+        stages.find("tbody").append(`
           <tr>
-            <th></th>
-            <th>Score</th>
-            <th>PIV</th>
-            <th>Graze</th>
-            <th>Power</th>
-            <th>P</th>
-            <th>B</th>
-            <th>Trance</th>
+            <td>${j < 7 ? j : "Ex"}</td>
+            <td>${j in dat.stages ? dat.stages[j].score * 10 : dat.score * 10}</td>
+            <td>${j in dat.stages ? dat.stages[j].piv * 10 : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].graze : ""}</td>
+            <td>${j in dat.stages ? (dat.stages[j].power / 100).toFixed(2) : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].player + "+" + dat.stages[j].piece + "/" + ext[Math.max(0, Math.min(6, dat.stages[j].extend))] : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].bomb + "+" + dat.stages[j].biece + "/8" : ""}</td>
+            <td>${j in dat.stages ? Math.floor(dat.stages[j].trance / 200) + "+" + dat.stages[j].trance % 200 + "/200" : ""}</td>
           </tr>
         `);
-        const dat = th13(rpy);
-        const type = ["Reimu", "Marisa", "Sanae", "Youmu"][dat.type];
-        const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra", "Overdrive"][dat.difficulty];
-        const ext = [8, 10, 12, 15, 18, 20, 25];
-        for (const i in dat.stages) {
-          const j = +i + 1;
-          stages.find("tbody").append(`
-            <tr>
-              <td>${j < 7 ? j : "Ex"}</td>
-              <td>${j in dat.stages ? dat.stages[j].score * 10 : dat.score * 10}</td>
-              <td>${j in dat.stages ? dat.stages[j].piv * 10 : ""}</td>
-              <td>${j in dat.stages ? dat.stages[j].graze : ""}</td>
-              <td>${j in dat.stages ? (dat.stages[j].power / 100).toFixed(2) : ""}</td>
-              <td>${j in dat.stages ? dat.stages[j].player + "+" + dat.stages[j].piece + "/" + ext[Math.max(0, Math.min(6, dat.stages[j].extend))] : ""}</td>
-              <td>${j in dat.stages ? dat.stages[j].bomb + "+" + dat.stages[j].biece + "/8" : ""}</td>
-              <td>${j in dat.stages ? Math.floor(dat.stages[j].trance / 200) + "+" + dat.stages[j].trance % 200 + "/200" : ""}</td>
-            </tr>
-          `);
-        }
-        let clears = "-";
-        if (dat.clears >= 1 && dat.clears <= 6) clears = "(" + dat.clears + ")";
-        if (dat.clears == 7) clears = "(Ex)";
-        if (dat.clears > 7) clears = "(C)";
-        const spell = dat.spellNo < 0 ? "" : "No." + (dat.spellNo + 1);
-        return {
-          game: "th13",
-          name: $("<div>").text(dat.name).html(),
-          difficulty,
-          type,
-          score: dat.score * 10,
-          date: dat.date,
-          stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
-          clears,
-          thprac: u.thprac,
-          note: toDetails(spell + (spell.length && u.note.length ? "\r\n" : "") + u.note),
-        };
       }
-      else if (u.game === "th14") {
-        stages.find("thead").html(`
+      let clears = "-";
+      if (dat.clears >= 1 && dat.clears <= 6) clears = "(" + dat.clears + ")";
+      if (dat.clears == 7) clears = "(Ex)";
+      if (dat.clears > 7) clears = "(C)";
+      const spell = dat.spellNo < 0 ? "" : "No." + (dat.spellNo + 1);
+      return {
+        game: "th13",
+        name: $("<div>").text(dat.name).html(),
+        difficulty,
+        type,
+        score: dat.score * 10,
+        date: dat.date,
+        stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
+        clears,
+        thprac: user.thprac,
+        spell,
+        note: user.note,
+      };
+    }
+    case "t14r": {
+      stages.find("thead").html(`
+        <tr>
+          <th></th>
+          <th>Score</th>
+          <th>PIV</th>
+          <th>Graze</th>
+          <th>Power</th>
+          <th>P</th>
+          <th>B</th>
+        </tr>
+      `);
+      const dat = th14(rpy);
+      const type = ["Reimu", "Marisa", "Sakuya"][dat.type] + ["A", "B"][dat.sub];
+      const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra"][dat.difficulty];
+      for (const i in dat.stages) {
+        const j = +i + 1;
+        stages.find("tbody").append(`
           <tr>
-            <th></th>
-            <th>Score</th>
-            <th>PIV</th>
-            <th>Graze</th>
-            <th>Power</th>
-            <th>P</th>
-            <th>B</th>
+            <td>${j < 7 ? j : "Ex"}</td>
+            <td>${j in dat.stages ? dat.stages[j].score * 10 : dat.score * 10}</td>
+            <td>${j in dat.stages ? dat.stages[j].piv * 10 : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].graze : ""}</td>
+            <td>${j in dat.stages ? (dat.stages[j].power / 100).toFixed(2) : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].player + "+" + dat.stages[j].piece + "/3" : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].bomb + "+" + dat.stages[j].biece + "/8" : ""}</td>
           </tr>
         `);
-        const dat = th14(rpy);
-        const type = ["ReimuA", "ReimuB", "MarisaA", "MarisaB", "SakuyaA", "SakuyaB"][dat.type];
-        const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra"][dat.difficulty];
-        for (const i in dat.stages) {
-          const j = +i + 1;
-          stages.find("tbody").append(`
-            <tr>
-              <td>${j < 7 ? j : "Ex"}</td>
-              <td>${j in dat.stages ? dat.stages[j].score * 10 : dat.score * 10}</td>
-              <td>${j in dat.stages ? dat.stages[j].piv * 10 : ""}</td>
-              <td>${j in dat.stages ? dat.stages[j].graze : ""}</td>
-              <td>${j in dat.stages ? (dat.stages[j].power / 100).toFixed(2) : ""}</td>
-              <td>${j in dat.stages ? dat.stages[j].player + "+" + dat.stages[j].piece + "/3" : ""}</td>
-              <td>${j in dat.stages ? dat.stages[j].bomb + "+" + dat.stages[j].biece + "/8" : ""}</td>
-            </tr>
-          `);
-        }
-        let clears = "-";
-        if (dat.clears >= 1 && dat.clears <= 6) clears = "(" + dat.clears + ")";
-        if (dat.clears == 7) clears = "(Ex)";
-        if (dat.clears > 7) clears = "(C)";
-        const spell = dat.spellNo < 0 ? "" : "No." + (dat.spellNo + 1);
-        return {
-          game: "th14",
-          name: $("<div>").text(dat.name).html(),
-          difficulty,
-          type,
-          score: dat.score * 10,
-          date: dat.date,
-          stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
-          clears,
-          thprac: u.thprac,
-          note: toDetails(spell + (spell.length && u.note.length ? "\r\n" : "") + u.note),
-        };
       }
-      else {
-        return {};
-      }
+      let clears = "-";
+      if (dat.clears >= 1 && dat.clears <= 6) clears = "(" + dat.clears + ")";
+      if (dat.clears == 7) clears = "(Ex)";
+      if (dat.clears > 7) clears = "(C)";
+      const spell = dat.spellNo < 0 ? "" : "No." + (dat.spellNo + 1);
+      return {
+        game: "th14",
+        name: $("<div>").text(dat.name).html(),
+        difficulty,
+        type,
+        score: dat.score * 10,
+        date: dat.date,
+        stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
+        clears,
+        thprac: user.thprac,
+        spell,
+        note: user.note,
+      };
     }
     case "t15r": {
       stages.find("thead").html(`
@@ -520,7 +507,6 @@ async function getRpyHeader(file) {
       if (dat.clears == 7) clears = "(Ex)";
       if (dat.clears > 7) clears = "(C)";
       const spell = dat.spellNo < 0 ? "" : "No." + (dat.spellNo + 1);
-      const u = userData(rpy);
       return {
         game: "th15",
         name: $("<div>").text(dat.name).html(),
@@ -530,8 +516,9 @@ async function getRpyHeader(file) {
         date: dat.date,
         stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
         clears,
-        thprac: u.thprac,
-        note: toDetails(spell + (spell.length && u.note.length ? "\r\n" : "") + u.note),
+        thprac: user.thprac,
+        spell,
+        note: user.note,
       };
     }
     case "t16r": {
@@ -584,7 +571,6 @@ async function getRpyHeader(file) {
       if (dat.clears == 7) clears = "(Ex)";
       if (dat.clears > 7) clears = "(C)";
       const spell = dat.spellNo < 0 ? "" : "No." + (dat.spellNo + 1);
-      const u = userData(rpy);
       return {
         game: "th16",
         name: $("<div>").text(dat.name).html(),
@@ -594,13 +580,162 @@ async function getRpyHeader(file) {
         date: dat.date,
         stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
         clears,
-        thprac: u.thprac,
-        note: toDetails(spell + (spell.length && u.note.length ? "\r\n" : "") + u.note),
+        thprac: user.thprac,
+        spell,
+        note: user.note,
+      };
+    }
+    case "t17r": {
+      stages.find("thead").html(`
+        <tr>
+          <th></th>
+          <th>Score</th>
+          <th>PIV</th>
+          <th>Graze</th>
+          <th>Power</th>
+          <th>P</th>
+          <th>B</th>
+        </tr>
+      `);
+      const dat = th17(rpy);
+      const type = ["Reimu", "Marisa", "Youmu"][dat.type] + ["W", "O", "E"][dat.sub];
+      const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra"][dat.difficulty];
+      for (const i in dat.stages) {
+        const j = +i + 1;
+        stages.find("tbody").append(`
+          <tr>
+            <td>${j < 7 ? j : "Ex"}</td>
+            <td>${j in dat.stages ? dat.stages[j].score * 10 : dat.score * 10}</td>
+            <td>${j in dat.stages ? dat.stages[j].piv * 10 : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].graze : ""}</td>
+            <td>${j in dat.stages ? (dat.stages[j].power / 100).toFixed(2) : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].player + "+" + dat.stages[j].piece + "/3" : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].bomb + "+" + dat.stages[j].biece + "/3" : ""}</td>
+          </tr>
+        `);
+      }
+      let clears = "-";
+      if (dat.clears >= 1 && dat.clears <= 6) clears = "(" + dat.clears + ")";
+      if (dat.clears == 7) clears = "(Ex)";
+      if (dat.clears > 7) clears = "(C)";
+      const spell = dat.spellNo < 0 ? "" : "No." + (dat.spellNo + 1);
+      return {
+        game: "th17",
+        name: $("<div>").text(dat.name).html(),
+        difficulty,
+        type,
+        score: dat.score * 10,
+        date: dat.date,
+        stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
+        clears,
+        thprac: user.thprac,
+        spell,
+        note: user.note,
+      };
+    }
+    case "t18r": {
+      stages.find("thead").html(`
+        <tr>
+          <th></th>
+          <th>Score</th>
+          <th>PIV</th>
+          <th>Graze</th>
+          <th>Power</th>
+          <th>P</th>
+          <th>B</th>
+        </tr>
+      `);
+      const dat = th18(rpy);
+      const type = ["Reimu", "Marisa", "Sakuya", "Sanae"][dat.type];
+      const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra"][dat.difficulty];
+      for (const i in dat.stages) {
+        const j = +i + 1;
+        stages.find("tbody").append(`
+          <tr>
+            <td>${j < 7 ? j : "Ex"}</td>
+            <td>${j in dat.stages ? dat.stages[j].score * 10 : dat.score * 10}</td>
+            <td>${j in dat.stages || j === 7 ? dat.stages[i].end_piv * 10 : ""}</td>
+            <td>${j in dat.stages || j === 7 ? dat.stages[i].end_graze : ""}</td>
+            <td>${j in dat.stages || j === 7 ? (dat.stages[i].end_power / 100).toFixed(2) : ""}</td>
+            <td>${j in dat.stages || j === 7 ? dat.stages[i].end_player + "+" + dat.stages[i].end_piece + "/3" : ""}</td>
+            <td>${j in dat.stages || j === 7 ? dat.stages[i].end_bomb + "+" + dat.stages[i].end_biece + "/3" : ""}</td>
+          </tr>
+        `);
+      }
+      let clears = "-";
+      if (dat.clears >= 1 && dat.clears <= 6) clears = "(" + dat.clears + ")";
+      if (dat.clears == 7) clears = "(Ex)";
+      if (dat.clears > 7) clears = "(C)";
+      const spell = dat.spellNo < 0 ? "" : "No." + (dat.spellNo + 1);
+      return {
+        game: "th18",
+        name: $("<div>").text(dat.name).html(),
+        difficulty,
+        type,
+        score: dat.score * 10,
+        date: dat.date,
+        stages: stages.prop("outerHTML").replace(/\s+/g, " "),
+        clears,
+        thprac: user.thprac,
+        spell,
+        note: user.note,
+      };
+    }
+    case "t20r": {
+      stages.find("thead").html(`
+        <tr>
+          <th></th>
+          <th>Score</th>
+          <th>Anomaly Value</th>
+          <th>Power</th>
+          <th>P</th>
+          <th>B</th>
+        </tr>
+      `);
+      const dat = th20(rpy);
+      const type = ["Reimu", "Marisa"][dat.type] + ["R1", "R2", "B1", "B2", "Y1", "Y2", "G1", "G2", "C"][dat.sub];
+      const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra"][dat.difficulty];
+      for (const i in dat.stages) {
+        const j = +i + 1;
+        stages.find("tbody").append(`
+          <tr>
+            <td>${j < 7 ? j : "Ex"}</td>
+            <td>${j in dat.stages ? dat.stages[j].score * 10 : dat.score * 10}</td>
+            <td>${j in dat.stages ? (dat.stages[j].piv / 100).toFixed(2) : ""}</td>
+            <td>${j in dat.stages ? (dat.stages[j].power / 100).toFixed(2) : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].player + "+" + dat.stages[j].piece + "/3" : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].bomb + "+" + dat.stages[j].biece + "/3" : ""}</td>
+          </tr>
+        `);
+      }
+      let clears = "-";
+      if (dat.clears >= 1 && dat.clears <= 6) clears = "(" + dat.clears + ")";
+      if (dat.clears == 7) clears = "(Ex)";
+      if (dat.clears > 7) clears = "(C)";
+      const spell = dat.spellNo < 0 ? "" : "No." + (dat.spellNo + 1);
+      return {
+        game: "th20",
+        name: $("<div>").text(dat.name).html(),
+        difficulty,
+        type,
+        score: dat.score * 10,
+        date: dat.date,
+        stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
+        clears,
+        thprac: user.thprac,
+        spell,
+        note: user.note,
       };
     }
     default:
       return {};
   }
+}
+
+function toDetails(str) {
+  const s = $("<div>").text(str).html();
+  if (new Blob([s]).size <= 32 && !/\n/.test(s)) return s;
+  return $("<details>").html(s.replace(/\r?\n/g, "<br>")).prop("outerHTML");
 }
 
 $(function () {
@@ -610,7 +745,7 @@ $(function () {
   function updateHeaderCheck() {
     let cnt = 0;
     let cntSel = 0;
-    const cntAll = $(".check").length;
+    // const cntAll = $(".check").length;
     $(".check").each(function () {
       if ($(this).is(":hidden")) return true;
       if ($(this).is(":checked")) cntSel++;
@@ -628,8 +763,7 @@ $(function () {
       $("#checkAll").prop("checked", false);
       $("#checkAll").prop("indeterminate", true);
     }
-    $("#count").text(`${cnt}/${cntAll} items`);
-    $("#import").prop("disabled", cntAll);
+    // $("#import").prop("disabled", cntAll);
   }
 
   $("#table").bind("tablesorter-initialized", function () {
@@ -637,16 +771,15 @@ $(function () {
   });
 
   $("#table").tablesorter({
-    // sortReset:true,
     theme: 'blue',
-    widgets: ["zebra", "filter"],
+    widgets: ["zebra", "filter", "stickyHeaders", "pager"],
     headers: {
       0: { sorter: false },
       6: { sorter: "digit" },
-      7: { sorter: "shortDate" },
-      8: { sorter: "shortDate" },
       9: { sorter: false },
+      ".lexsort": { sorter: "text" },
     },
+    sortStable: true,
     widgetOptions: {
       filter_functions: {
         0: {
@@ -656,46 +789,36 @@ $(function () {
         1: true,
         4: true,
         5: true,
+        ".dates": function (e, n, f, i, $r, c, data) {
+          const s = f.split(/\s+(?:to|-)\s+/);
+          if (s.length === 2) {
+            return s[0].trim() <= e && e <= s[1].trim();
+          }
+          return null;
+        },
         10: true,
         11: true,
       },
       filter_searchDelay: 0,
+      filter_reset: "#resetFilters",
+      pager_selectors: {
+        container: "#pager",
+        first: "#first",
+        prev: "#prev",
+        next: "#next",
+        last: "#last",
+        gotoPage: "#gotoPage",
+        pageDisplay: "#pageDisplay",
+        pageSize: "#pagesize",
+      },
+      pager_size: 50,
+      pager_output: "{startRow} - {endRow} of {filteredRows} / {totalRows}",
+      pager_removeRows: true, // a lot of bugs
     },
   });
 
-  async function addRow(file, index) {
-    // const size = file.size;
-    const fDate = formatTime(new Date(file[0].lastModified));
-    const dat = await getRpyHeader(file[0]);
-    if (file.length === 3 && (dat.game === "th6" || dat.game === "th7")) {
-      const txt = new Uint8Array(await file[2].arrayBuffer());
-      let note;
-      if (txt[0] === 0xef && txt[1] === 0xbb && txt[2] === 0xbf) note = new TextDecoder("utf-8", { ignoreBOM: true }).decode(txt);
-      else note = new TextDecoder("shift-jis").decode(txt);
-      dat.note = toDetails(note);
-    }
-    const row = $(`
-      <tr id="row${index}" class="rpyRow">
-        <td>
-          <label class="checkLabel">
-            <input type="checkbox" class="check" />
-          </label>
-        </td>
-        <td>${dat.game}</td>
-        <td>${$("<div>").text(file[1]).html()}</td>
-        <td>${dat.name}</td>
-        <td>${dat.difficulty}</td>
-        <td>${dat.type}</td>
-        <td style="text-align: right;">${dat.score}</td>
-        <td>${dat.date}</td>
-        <td>${fDate}</td>
-        <td>${dat.stages}</td>
-        <td>${dat.clears}</td>
-        <td>${dat.thprac ? "Yes" : "No"}</td>
-        <td>${dat.note}</td>
-      </tr>
-    `);
-    row.find(".check").on("click", function (e) {
+  function appendRows(rows) {
+    rows.find(".check").on("click", function (e) {
       const now = parseInt($(this).closest("tr").attr("id").match(/\d*$/), 10);
       if (!e.shiftKey || lastChecked < 0 || lastChecked === now || $("#row" + lastChecked).length === 0) {
         lastChecked = now;
@@ -713,41 +836,79 @@ $(function () {
       });
       updateHeaderCheck();
     });
-    $("#rpyInfo").append(row);
+    $("#rpyInfo").append(rows);
+  }
+
+  async function makeRow(file, index) {
+    const fDate = formatTime(new Date(file[0].lastModified));
+    const dat = await getRpyInfo(file[0], file[1]);
+    if (file.length === 3) {
+      const txt = new Uint8Array(await file[2].arrayBuffer());
+      dat.note = decodeNote(txt);
+    }
+    const spell = dat.spell ?? "";
+    const note = dat.note ?? "";
+    const fNote = toDetails(spell + (spell.length && note.length ? "\r\n" : "") + note);
+    return `
+      <tr id="row${index}" class="rpyRow">
+        <td>
+          <label class="checkLabel">
+            <input type="checkbox" class="check" />
+          </label>
+        </td>
+        <td>${dat.game}</td>
+        <td>${$("<div>").text(file[1]).html()}</td>
+        <td>${dat.name}</td>
+        <td>${dat.difficulty}</td>
+        <td>${dat.type}</td>
+        <td style="text-align: right;">${dat.score}</td>
+        <td>${dat.date}</td>
+        <td>${fDate}</td>
+        <td>${dat.stages}</td>
+        <td>${dat.clears}</td>
+        <td>${dat.thprac ? "Yes" : "No"}</td>
+        <td>${fNote}</td>
+      </tr>
+    `;
   }
 
   async function inputFiles(files) {
     const len = files.length;
+    if (len === 0) return;
+    const rows = [];
     for (let i = 0; i < len; i++) {
-      $("#count").text(`${i + 1}/${len}`);
-      await addRow(files[i], rpyCnt + i);
+      $("#pageDisplay").text(`${i + 1}/${len}`);
+      rows.push(await makeRow(files[i], rpyCnt + i));
     }
+    $("#table").trigger("filterReset").trigger("disablePager");
+    appendRows($(rows.join("")));
     rpyCnt += len;
-    $("#count").empty();
+    $("#pageDisplay").empty();
+    // $("#table").trigger("update");
+    $("#table").trigger("enablePager").trigger("pagerUpdate").trigger("sortReset");
     updateHeaderCheck();
-    $("#table").trigger("update");
   }
 
-  $("#export").on("click", function () {
-    const dat = $("<div>");
-    $("<div>", { id: "cnt" }).text(rpyCnt).appendTo(dat);
-    $("#table").clone(false).appendTo(dat);
-    const xml = new XMLSerializer().serializeToString(new DOMParser().parseFromString(dat.prop("outerHTML"), "text/html"));
-    const blob = new Blob([xml], { type: "application/xml" });
-    const url = URL.createObjectURL(blob);
-    $("<a>", { href: url, download: "replays.xml" })[0].click();
-    URL.revokeObjectURL(url);
-  });
+  // $("#export").on("click", function () {
+  //   const dat = $("<div>");
+  //   $("<div>", { id: "cnt" }).text(rpyCnt).appendTo(dat);
+  //   $("#table").clone(false).appendTo(dat);
+  //   const xml = new XMLSerializer().serializeToString(new DOMParser().parseFromString(dat.prop("outerHTML"), "text/html"));
+  //   const blob = new Blob([xml], { type: "application/xml" });
+  //   const url = URL.createObjectURL(blob);
+  //   $("<a>", { href: url, download: "replays.xml" })[0].click();
+  //   URL.revokeObjectURL(url);
+  // });
 
-  $("#import").on("change", function (e) {
-    e.target.files[0].text().then((r) => {
-      $("#rpyInfo").append($(r).find("#rpyInfo").html());
-      lastChecked = -1;
-      rpyCnt = +$(r).find("#cnt").text();
-      updateHeaderCheck();
-      $("#table").trigger("update");
-    });
-  });
+  // $("#import").on("change", function (e) {
+  //   e.target.files[0].text().then((r) => {
+  //     appendRows($($(r).find("#rpyInfo").html()));
+  //     lastChecked = -1;
+  //     rpyCnt = +$(r).find("#cnt").text();
+  //     updateHeaderCheck();
+  //     $("#table").trigger("update");
+  //   });
+  // });
 
   $("#inputFile").on("change", function (e) {
     const files = Array.from(e.target.files).filter((f) => /\.rpy$/.test(f.name)).map((f) => [f, f.name]);
@@ -774,38 +935,41 @@ $(function () {
     inputFiles(files.filter((f) => /\.rpy$/.test(f[1])));
   });
 
-  $("#removeSelected").on("click", function () {
-    const cRows = $(".check:checked").closest("tr");
-    const cnt = cRows.length;
-    if (cnt === 0) return;
-    const ok = confirm(`Remove ${cnt} selected items`);
-    if (!ok) return;
-    cRows.remove();
-    updateHeaderCheck();
-    $("#table").trigger("update");
-  });
+  // $("#removeSelected").on("click", function () {
+  //   $("#table").trigger("filterReset").trigger("disablePager");
+  //   const cRows = $(".check:checked").closest("tr");
+  //   const cnt = cRows.length;
+  //   if (cnt === 0) {
+  //     $("#table").trigger("enablePager").trigger("pagerUpdate");
+  //     return;
+  //   }
+  //   const ok = confirm(`Remove ${cnt} selected items`);
+  //   if (!ok) {
+  //     $("#table").trigger("enablePager").trigger("pagerUpdate");
+  //     return;
+  //   }
+  //   cRows.remove();
+  //   $("#table").trigger("enablePager").trigger("pagerUpdate");
+  //   updateHeaderCheck();
+  // });
 
-  $("#removeUnselected").on("click", function () {
-    const cRows = $(".check:not(:checked)").closest("tr");
-    const cnt = cRows.length;
-    if (cnt === 0) return;
-    const ok = confirm(`Remove ${cnt} unselected items`);
-    if (!ok) return;
-    cRows.remove();
-    updateHeaderCheck();
-    $("#table").trigger("update");
-  });
-
-  $("#removeHidden").on("click", function () {
-    const hRows = $(".rpyRow:hidden");
-    const cnt = hRows.length;
-    if (cnt === 0) return;
-    const ok = confirm(`Remove ${cnt} hidden items`);
-    if (!ok) return;
-    hRows.remove();
-    updateHeaderCheck();
-    $("#table").trigger("update");
-  });
+  // $("#removeUnselected").on("click", function () {
+  //   $("#table").trigger("filterReset").trigger("disablePager");
+  //   const cRows = $(".check:not(:checked)").closest("tr");
+  //   const cnt = cRows.length;
+  //   if (cnt === 0) {
+  //     $("#table").trigger("enablePager").trigger("pagerUpdate");
+  //     return;
+  //   }
+  //   const ok = confirm(`Remove ${cnt} unselected items`);
+  //   if (!ok) {
+  //     $("#table").trigger("enablePager").trigger("pagerUpdate");
+  //     return;
+  //   }
+  //   cRows.remove();
+  //   $("#table").trigger("enablePager").trigger("pagerUpdate");
+  //   updateHeaderCheck();
+  // });
 
   $("#checkAll").on("change", function () {
     const checked = $(this).prop("checked");
@@ -816,7 +980,7 @@ $(function () {
     updateHeaderCheck();
   });
 
-  $("#table").bind("filterEnd", function () {
+  $("#table").bind("filterEnd pagerComplete", function () {
     updateHeaderCheck();
   });
 });

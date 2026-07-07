@@ -2,7 +2,8 @@ body {
   background-color: lightyellow;
 }
 
-button {
+button,
+select {
   cursor: pointer;
   padding: 3px;
 }
@@ -27,18 +28,20 @@ code {
   padding: 10px 15px;
 }
 
-#import::file-selector-button {
+/* #import::file-selector-button {
   cursor: pointer;
-}
+} */
 
-#port {
+.buttons {
   display: flex;
   justify-content: space-between;
+  margin-top: 10px;
+  align-items: center;
 }
 
-#count {
+#pageDisplay {
   background-color: white;
-  width: 200px;
+  padding: 2px 10px;
   border: 1px solid #ccc;
   text-align: center;
 }

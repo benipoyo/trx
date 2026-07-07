@@ -10,11 +10,15 @@ function formatTime(date) {
   return `${y}-${m}-${d} ${h}:${mm}:${s}`;
 }
 
+function decodeNote(txt) {
+  if (txt[0] === 0xef && txt[1] === 0xbb && txt[2] === 0xbf) return new TextDecoder("utf-8", { ignoreBOM: true }).decode(txt);
+  return new TextDecoder("shift-jis").decode(txt);
+}
+
 function userData(rpy) {
   const len = rpy.length;
   const ret = {};
   ret.thprac = false;
-  ret.note = "";
   const td = new TextDecoder();
   const game = td.decode(rpy.slice(0, 4));
   if (td.decode(rpy.slice(len - 4)) === "PRAC") {
@@ -23,26 +27,34 @@ function userData(rpy) {
   }
   if (game === "T6RP" || game === "T7RP" || len < 0x10) return ret;
   const dv = new DataView(rpy.buffer);
-  const size = dv.getUint32(0xc, true);
+  const user = [];
+  let offset = dv.getUint32(0xc, true);
+  while (offset + 0x8 <= len) {
+    if (td.decode(rpy.slice(offset, offset + 0x4)) !== "USER") break;
+    const size = dv.getUint32(offset + 0x4, true);
+    user.push(rpy.slice(offset, offset + size));
+    offset += size;
+  }
+  if (user.length < 1) return ret;
   if (game === "T8RP") {
-    ret.year = td.decode(rpy.slice(size + 0x2e, size + 0x32));
-    ret.time = td.decode(rpy.slice(size + 0x39, size + 0x41));
+    ret.year = td.decode(user[0].slice(0x2e, 0x32));
+    ret.time = td.decode(user[0].slice(0x39, 0x41));
     ret.clear = "-";
     let crlf = 0;
-    for (let i = size + 0x43; i < len; i++) {
-      if (rpy[i] !== 0xd || rpy[i + 1] !== 0xa) continue;
+    for (let i = 0x43; i < user[0].length; i++) {
+      if (user[0][i] !== 0xd || user[0][i + 1] !== 0xa) continue;
       crlf++;
       if (crlf < 3) continue;
-      for (let j = i + 2; j < len; j++) {
-        if (rpy[j] !== 0x9) continue;
-        for (let k = j + 1; k < len; k++) {
-          if (rpy[k] !== 0xd || rpy[k + 1] !== 0xa) continue;
-          switch (td.decode(rpy.slice(j + 1, j + 6))) {
+      for (let j = i + 2; j < user[0].length; j++) {
+        if (user[0][j] !== 0x9) continue;
+        for (let k = j + 1; k < user[0].length; k++) {
+          if (user[0][k] !== 0xd || user[0][k + 1] !== 0xa) continue;
+          switch (td.decode(user[0].slice(j + 1, j + 6))) {
             case "Clear":
               ret.clear = "(C)";
               break;
             case "Stage":
-              ret.clear = "(" + (rpy[j + 7] - 0x30) + ")";
+              ret.clear = "(" + (user[0][j + 7] - 0x30) + ")";
               break;
             case "Extra":
               ret.clear = "(Ex)";
@@ -55,7 +67,7 @@ function userData(rpy) {
     }
   }
   if (game === "t13r") {
-    switch (rpy[size + 0x10]) {
+    switch (user[0][0x10]) {
       case 0x90:
         ret.game = "th13";
         break;
@@ -63,13 +75,13 @@ function userData(rpy) {
         ret.game = "th14";
     }
   }
-  if (len < size + 0x8) return ret;
-  const offset = dv.getUint32(size + 0x4, true);
-  if (td.decode(rpy.slice(size + offset + 0x8, size + offset + 0xc)) === "PRAC") {
-    ret.thprac = true;
-    return ret;
+  if (user.length < 2) return ret;
+  for (let i = 1; i < user.length; i++) {
+    if (td.decode(user[i].slice(0x8, 0xc)) === "PRAC") {
+      ret.thprac = true;
+    }
+    else if (user[i][user[i].length - 2]) ret.note = decodeNote(user[i].slice(0xc)).replace(/\0*$/, "");
   }
-  if (rpy[len - 2]) ret.note = new TextDecoder("shift-jis").decode(rpy.slice(size + offset + 0xc)).replace(/\0*$/, "");
   return ret;
 }
 
@@ -275,7 +287,8 @@ function th10(rpy) {
   ret.name = new TextDecoder().decode(buf.slice(0x24, 0x2d)).replace(/[ \0]*$/, "");
   if (len >= 0x34) ret.date = formatTime(new Date(dv.getUint32(0x30, true) * 1000));
   if (len >= 0x38) ret.score = dv.getUint32(0x34, true);
-  ret.type = buf[0x74] * 3 + buf[0x78];
+  ret.type = buf[0x74];
+  ret.sub = buf[0x78];
   ret.difficulty = buf[0x7c];
   ret.clears = buf[0x80];
   const cnt = buf[0x70];
@@ -305,7 +318,8 @@ function th11(rpy) {
   ret.name = new TextDecoder().decode(buf.slice(0x24, 0x2d)).replace(/[ \0]*$/, "");
   if (len >= 0x38) ret.date = formatTime(new Date(Number(dv.getBigUint64(0x30, true)) * 1000));
   if (len >= 0x3c) ret.score = dv.getUint32(0x38, true);
-  ret.type = buf[0x80] * 3 + buf[0x84];
+  ret.type = buf[0x80];
+  ret.sub = buf[0x84];
   ret.difficulty = buf[0x88];
   ret.clears = buf[0x8c];
   const cnt = buf[0x7c];
@@ -337,7 +351,8 @@ function th12(rpy) {
   ret.name = new TextDecoder().decode(buf.slice(0x24, 0x2d)).replace(/[ \0]*$/, "");
   if (len >= 0x38) ret.date = formatTime(new Date(Number(dv.getBigUint64(0x30, true)) * 1000));
   if (len >= 0x3c) ret.score = dv.getUint32(0x38, true);
-  ret.type = buf[0x80] * 2 + buf[0x84];
+  ret.type = buf[0x80];
+  ret.sub = buf[0x84];
   ret.difficulty = buf[0x88];
   ret.clears = buf[0x8c];
   const cnt = buf[0x7c];
@@ -440,7 +455,8 @@ function th14(rpy) {
   ret.name = new TextDecoder().decode(buf.slice(0x24, 0x2d)).replace(/[ \0]*$/, "");
   if (len >= 0x38) ret.date = formatTime(new Date(Number(dv.getBigUint64(0x30, true)) * 1000));
   if (len >= 0x3c) ret.score = dv.getUint32(0x38, true);
-  ret.type = buf[0xa0] * 2 + buf[0xa4];
+  ret.type = buf[0xa0];
+  ret.sub = buf[0xa4];
   ret.difficulty = buf[0xa8];
   ret.clears = buf[0xac];
   if (len >= 0xb8) ret.spellNo = dv.getInt32(0xb4, true);
@@ -532,6 +548,121 @@ function th16(rpy) {
     ret.stages[i].biece = dv.getUint32(pos + 0x88, true);
     ret.stages[i].season = dv.getUint32(pos + 0x8c, true);
     pos += dv.getUint32(pos + 0x8, true) + 0x294;
+  }
+  return ret;
+}
+
+function th17(rpy) {
+  const buf0 = rpy.slice();
+  decode10(buf0, 0x24, 0x400, 0x5c, 0xe1);
+  decode10(buf0, 0x24, 0x100, 0x7d, 0x3a);
+  const buf = decompress7(buf0, 0x24);
+  const len = buf.length;
+  const ret = {};
+  const dv = new DataView(buf.buffer);
+  ret.name = new TextDecoder().decode(buf.slice(0x24, 0x2d)).replace(/[ \0]*$/, "");
+  if (len >= 0x3c) ret.date = formatTime(new Date(Number(dv.getBigUint64(0x34, true)) * 1000));
+  if (len >= 0x40) ret.score = dv.getUint32(0x3c, true);
+  ret.type = buf[0xac];
+  ret.sub = buf[0xb0];
+  ret.difficulty = buf[0xb4];
+  ret.clears = buf[0xb8];
+  if (len >= 0xc4) ret.spellNo = dv.getInt32(0xc0, true);
+  const cnt = buf[0xa8];
+  let pos = 0xc4;
+  ret.stages = [];
+  for (let j = 0; j < cnt; j++) {
+    if (pos + 0x8c > len) break;
+    const i = buf[pos] - 1;
+    ret.stages[i] = {};
+    ret.stages[i].score = dv.getUint32(pos + 0x34, true);
+    ret.stages[i].graze = dv.getUint32(pos + 0x44, true);
+    ret.stages[i].piv = Math.floor(dv.getUint32(pos + 0x5c, true) / 1000);
+    ret.stages[i].power = dv.getUint32(pos + 0x68, true);
+    ret.stages[i].player = dv.getUint32(pos + 0x78, true);
+    ret.stages[i].piece = dv.getUint32(pos + 0x7c, true);
+    ret.stages[i].bomb = dv.getUint32(pos + 0x84, true);
+    ret.stages[i].biece = dv.getUint32(pos + 0x88, true);
+    pos += dv.getUint32(pos + 0x8, true) + 0x158;
+  }
+  return ret;
+}
+
+function th18(rpy) {
+  const buf0 = rpy.slice();
+  decode10(buf0, 0x24, 0x400, 0x5c, 0xe1);
+  decode10(buf0, 0x24, 0x100, 0x7d, 0x3a);
+  const buf = decompress7(buf0, 0x24);
+  const len = buf.length;
+  const ret = {};
+  const dv = new DataView(buf.buffer);
+  ret.name = new TextDecoder().decode(buf.slice(0x24, 0x2d)).replace(/[ \0]*$/, "");
+  if (len >= 0x3c) ret.date = formatTime(new Date(Number(dv.getBigUint64(0x34, true)) * 1000));
+  if (len >= 0x40) ret.score = dv.getUint32(0x3c, true);
+  ret.type = buf[0xd0];
+  ret.difficulty = buf[0xd8];
+  ret.clears = buf[0xdc];
+  if (len >= 0xe8) ret.spellNo = dv.getInt32(0xe4, true);
+  const cnt = buf[0xcc];
+  let pos = 0xec;
+  ret.stages = [];
+  for (let j = 0; j < cnt; j++) {
+    if (pos + 0xec > len) break;
+    const i = buf[pos] - 1;
+    ret.stages[i] = {};
+    ret.stages[i].score = dv.getUint32(pos + 0x88, true);
+    ret.stages[i].graze = dv.getUint32(pos + 0x98, true);
+    ret.stages[i].piv = Math.floor(dv.getUint32(pos + 0xb0, true) / 1000);
+    ret.stages[i].power = dv.getUint32(pos + 0xc4, true);
+    ret.stages[i].player = dv.getUint32(pos + 0xd4, true);
+    ret.stages[i].piece = dv.getUint32(pos + 0xd8, true);
+    ret.stages[i].bomb = dv.getUint32(pos + 0xe4, true);
+    ret.stages[i].biece = dv.getUint32(pos + 0xe8, true);
+    if (pos + 0x9ec > len) break;
+    // ret.stages[i].end_score = dv.getUint32(pos + 0x988, true);
+    ret.stages[i].end_graze = dv.getUint32(pos + 0x998, true);
+    ret.stages[i].end_piv = Math.floor(dv.getUint32(pos + 0x9b0, true) / 1000);
+    ret.stages[i].end_power = dv.getUint32(pos + 0x9c4, true);
+    ret.stages[i].end_player = dv.getUint32(pos + 0x9d4, true);
+    ret.stages[i].end_piece = dv.getUint32(pos + 0x9d8, true);
+    ret.stages[i].end_bomb = dv.getUint32(pos + 0x9e4, true);
+    ret.stages[i].end_biece = dv.getUint32(pos + 0x9e8, true);
+    pos += dv.getUint32(pos + 0x8, true) + 0x126c;
+  }
+  return ret;
+}
+
+function th20(rpy) {
+  const buf0 = rpy.slice();
+  decode10(buf0, 0x30, 0x400, 0x5c, 0xe1);
+  decode10(buf0, 0x30, 0x100, 0x7d, 0x3a);
+  const buf = decompress7(buf0, 0x30);
+  const len = buf.length;
+  const ret = {};
+  const dv = new DataView(buf.buffer);
+  ret.name = new TextDecoder().decode(buf.slice(0x30, 0x39)).replace(/[ \0]*$/, "");
+  if (len >= 0x48) ret.date = formatTime(new Date(Number(dv.getBigUint64(0x40, true)) * 1000));
+  if (len >= 0x4c) ret.score = dv.getUint32(0x48, true);
+  ret.type = buf[0x108];
+  ret.sub = buf[0x10c];
+  ret.difficulty = buf[0x120];
+  ret.clears = buf[0x124];
+  if (len >= 0x130) ret.spellNo = dv.getInt32(0x12c, true);
+  const cnt = buf[0x104];
+  let pos = 0x130;
+  ret.stages = [];
+  for (let j = 0; j < cnt; j++) {
+    if (pos + 0x144 > len) break;
+    const i = buf[pos] - 1;
+    ret.stages[i] = {};
+    ret.stages[i].score = dv.getUint32(pos + 0x70, true);
+    ret.stages[i].piv = Math.floor(dv.getUint32(pos + 0xb4, true) / 50);
+    ret.stages[i].power = dv.getUint32(pos + 0xa0, true);
+    ret.stages[i].player = dv.getUint32(pos + 0x128, true);
+    ret.stages[i].piece = dv.getUint32(pos + 0x130, true);
+    ret.stages[i].bomb = dv.getUint32(pos + 0x13c, true);
+    ret.stages[i].biece = dv.getUint32(pos + 0x140, true);
+    pos += dv.getUint32(pos + 0xc, true) + 0x2a0;
   }
   return ret;
 }
