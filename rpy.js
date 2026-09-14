@@ -16,6 +16,9 @@ async function getRpyInfo(file, path) {
   if (head === "t13r" && (user.game === "th14" || (user.game !== "th13" && /(?:^|\/)th14_[^/]*$/.test(path)))) {
     head = "t14r";
   }
+  if (head === "T6RP" && rpy[4] >= 0xf) {
+    head = "T6RPnc";
+  }
   switch (head) {
     case "T6RP": {
       stages.find("thead").html(`
@@ -27,7 +30,7 @@ async function getRpyInfo(file, path) {
           <th>B</th>
         </tr>
       `);
-      const dat = th6(rpy);
+      const dat = rpy[4] < 3 ? th6(rpy) : th6c(rpy);
       const type = ["ReimuA", "ReimuB", "MarisaA", "MarisaB"][dat.type];
       const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra"][dat.difficulty];
       for (const i in dat.stages) {
@@ -43,7 +46,7 @@ async function getRpyInfo(file, path) {
         `);
       }
       return {
-        game: "th6",
+        game: rpy[4] < 3 ? "th6" : "th6c",
         name: $("<div>").text(dat.name).html(),
         difficulty,
         type,
@@ -51,6 +54,59 @@ async function getRpyInfo(file, path) {
         date: dat.date,
         stages: dat.difficulty < 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
         clears: "-",
+        thprac: user.thprac,
+      };
+    }
+    case "T6RPnc": {
+      const dat = th6nc(rpy);
+      stages.find("thead").html(dat.mode ? `
+        <tr>
+          <th></th>
+          <th>Score</th>
+          <th>Power</th>
+          <th>M</th>
+        </tr>
+      `: `
+        <tr>
+          <th></th>
+          <th>Score</th>
+          <th>Power</th>
+          <th>P</th>
+          <th>B</th>
+        </tr>
+      `);
+      const type = ["ReimuA", "ReimuB", "MarisaA", "MarisaB"][dat.type];
+      const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra", "Spell"][dat.spell ? 5 : dat.difficulty];
+      for (const i in dat.stages) {
+        const j = +i + 1;
+        stages.find("tbody").append(dat.mode ? `
+          <tr>
+            <td>${j < 7 ? j : "Ex"}</td>
+            <td>${dat.stages[j - 1].score}</td>
+            <td>${j in dat.stages ? dat.stages[j].power : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].miss : ""}</td>
+          </tr>
+        `: `
+          <tr>
+            <td>${j < 7 ? j : "Ex"}</td>
+            <td>${dat.stages[j - 1].score}</td>
+            <td>${j in dat.stages ? dat.stages[j].power : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].player : ""}</td>
+            <td>${j in dat.stages ? dat.stages[j].bomb : ""}</td>
+          </tr>
+        `);
+      }
+      const spell = dat.spell === 0 ? "" : "No." + (dat.difficulty + 1);
+      return {
+        game: "th6nc",
+        name: $("<div>").text(dat.name).html(),
+        difficulty,
+        type,
+        score: dat.score,
+        date: dat.date,
+        stages: dat.difficulty != 4 ? stages.prop("outerHTML").replace(/\s+/g, " ") : "",
+        clears: "-",
+        spell,
         thprac: user.thprac,
       };
     }
@@ -544,7 +600,7 @@ async function getRpyInfo(file, path) {
         if (j in dat.stages) {
           let m = 0;
           let n = dat.stages[j].season;
-          for (let d of season_powers) {
+          for (const d of season_powers) {
             if (n < d) {
               season = m + "+" + n + "/" + d;
               break;
@@ -738,6 +794,45 @@ function toDetails(str) {
   return $("<details>").html(s.replace(/\r?\n/g, "<br>")).prop("outerHTML");
 }
 
+// based on https://qiita.com/aKuad/items/2942b85cf0563436e241
+async function recEntries(entries) {
+  const files = [];
+  for (const entry of entries) {
+    if (entry.isDirectory) {
+      const children = await new Promise((r) => {
+        entry.createReader().readEntries((e) => { r(e); });
+      });
+      files.push(...await recEntries(children));
+    }
+    else {
+      const file = await new Promise((r) => {
+        entry.file((e) => { r(e); });
+      });
+      files.push(file);
+    }
+  }
+  return files;
+}
+
+function rpytxt(files) {
+  const id = [...Array(files.length)].map((_, i) => i);
+  id.sort((i, j) => {
+    const fi = files[i][1];
+    const fj = files[j][1];
+    const fi0 = fi.replace(/\....$/, "");
+    const fj0 = fj.replace(/\....$/, "");
+    if (fi0 < fj0) return -1;
+    if (fi0 > fj0) return 1;
+    return fi < fj ? -1 : fi > fj ? 1 : 0;
+  });
+  for (let i = 1; i < id.length; i++) {
+    if (files[id[i - 1]][1].replace(/\....$/, "") === files[id[i]][1].replace(/\....$/, "")) {
+      files[id[i - 1]].push(files[id[i]][0]);
+    }
+  }
+  return files.filter((f) => /\.rpy$/.test(f[1]));
+}
+
 $(function () {
   let lastChecked = -1;
   let rpyCnt = 0;
@@ -910,29 +1005,20 @@ $(function () {
   //   });
   // });
 
-  $("#inputFile").on("change", function (e) {
-    const files = Array.from(e.target.files).filter((f) => /\.rpy$/.test(f.name)).map((f) => [f, f.name]);
-    inputFiles(files);
+  $("#inputFile").on("change", async function (e) {
+    if (e.target.webkitEntries.length === 0) {
+      const files = Array.from(e.target.files).filter((f) => /\.rpy$|\.txt$/.test(f.name)).map((f) => [f, f.name]);
+      inputFiles(rpytxt(files));
+      return;
+    }
+    const entries = await recEntries(e.target.webkitEntries);
+    const files = Array.from(entries).filter((f) => /\.rpy$|\.txt$/.test(f.name)).map((f) => [f, f.webkitRelativePath.length ? f.webkitRelativePath : f.name]);
+    inputFiles(rpytxt(files));
   });
 
   $("#inputDir").on("change", function (e) {
     const files = Array.from(e.target.files).filter((f) => /\.rpy$|\.txt$/.test(f.webkitRelativePath)).map((f) => [f, f.webkitRelativePath]);
-    const id = [...Array(files.length)].map((_, i) => i);
-    id.sort((i, j) => {
-      const fi = files[i][1];
-      const fj = files[j][1];
-      const fi0 = fi.replace(/\....$/, "");
-      const fj0 = fj.replace(/\....$/, "");
-      if (fi0 < fj0) return -1;
-      if (fi0 > fj0) return 1;
-      return fi < fj ? -1 : fi > fj ? 1 : 0;
-    });
-    for (let i = 1; i < id.length; i++) {
-      if (files[id[i - 1]][1].replace(/\....$/, "") === files[id[i]][1].replace(/\....$/, "")) {
-        files[id[i - 1]].push(files[id[i]][0]);
-      }
-    }
-    inputFiles(files.filter((f) => /\.rpy$/.test(f[1])));
+    inputFiles(rpytxt(files));
   });
 
   // $("#removeSelected").on("click", function () {

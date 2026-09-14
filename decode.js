@@ -181,6 +181,61 @@ function th6(rpy) {
   return ret;
 }
 
+function th6c(rpy) {
+  const buf = rpy.slice();
+  decode6(buf, 0xe, 0xf);
+  const len = buf.length;
+  const ret = {};
+  const td = new TextDecoder();
+  const dv = new DataView(buf.buffer);
+  ret.type = buf[0x6];
+  ret.difficulty = buf[0x7];
+  ret.date = td.decode(buf.slice(0x10, 0x19)).replace(/^(..)\/(..)\/(..).*$/, "20$3-$1-$2");
+  ret.name = td.decode(buf.slice(0x19, 0x22)).replace(/[ \0]*$/, "");
+  if (len >= 0x28) ret.score = dv.getUint32(0x24, true);
+  ret.stages = [];
+  for (let i = 0; i < 7; i++) {
+    if (len < 0x38 + i * 8 + 8) break;
+    const pos = Number(dv.getBigUint64(0x38 + i * 8, true));
+    if (pos === 0 || pos + 0xa >= len) continue;
+    ret.stages[i] = {};
+    ret.stages[i].score = dv.getUint32(pos, true);
+    ret.stages[i].power = dv.getUint8(pos + 0x8);
+    ret.stages[i].player = buf[pos + 0x9];
+    ret.stages[i].bomb = buf[pos + 0xa];
+  }
+  return ret;
+}
+
+function th6nc(rpy) {
+  const buf = rpy.slice();
+  decode6(buf, 0x12, 0x13);
+  const len = buf.length;
+  const ret = {};
+  const td = new TextDecoder();
+  const dv = new DataView(buf.buffer);
+  ret.mode = buf[0x6] & 1;
+  ret.spell = buf[0x6] & 2;
+  ret.type = buf[0x7];
+  ret.difficulty = buf[0x8];
+  ret.date = td.decode(buf.slice(0x14, 0x1d)).replace(/^(..)\/(..)\/(..).*$/, "20$3-$1-$2");
+  ret.name = td.decode(buf.slice(0x1d, 0x26)).replace(/[ \0]*$/, "");
+  if (len >= 0x2c) ret.score = Number(dv.getBigUint64(0x28, true));
+  ret.stages = [];
+  for (let i = 0; i < 7; i++) {
+    if (len < 0x40 + i * 8 + 8) break;
+    const pos = Number(dv.getBigUint64(0x40 + i * 8, true));
+    if (pos === 0 || pos + 0x14 > len) continue;
+    ret.stages[i] = {};
+    ret.stages[i].score = Number(dv.getBigUint64(pos, true));
+    ret.stages[i].power = dv.getUint8(pos + 0xc);
+    ret.stages[i].player = buf[pos + 0xd];
+    ret.stages[i].bomb = buf[pos + 0xe];
+    ret.stages[i].miss = dv.getInt16(pos + 0x12, true);
+  }
+  return ret;
+}
+
 function th7(rpy) {
   const buf0 = rpy.slice();
   decode6(buf0, 0xd, 0x10);
