@@ -76,7 +76,7 @@ async function getRpyInfo(file, path) {
         </tr>
       `);
       const type = ["ReimuA", "ReimuB", "MarisaA", "MarisaB"][dat.type];
-      const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra", "Spell"][dat.spell ? 5 : dat.difficulty];
+      const difficulty = ["Easy", "Normal", "Hard", "Lunatic", "Extra", "Spell"][dat.spell ? 5 : dat.difficulty] + (dat.mode && !dat.spell ? "Ch" : "");
       for (const i in dat.stages) {
         const j = +i + 1;
         stages.find("tbody").append(dat.mode ? `
