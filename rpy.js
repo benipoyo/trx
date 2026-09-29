@@ -795,24 +795,24 @@ function toDetails(str) {
 }
 
 // based on https://qiita.com/aKuad/items/2942b85cf0563436e241
-async function recEntries(entries) {
-  const files = [];
-  for (const entry of entries) {
-    if (entry.isDirectory) {
-      const children = await new Promise((r) => {
-        entry.createReader().readEntries((e) => { r(e); });
-      });
-      files.push(...await recEntries(children));
-    }
-    else {
-      const file = await new Promise((r) => {
-        entry.file((e) => { r(e); });
-      });
-      files.push(file);
-    }
-  }
-  return files;
-}
+// async function recEntries(entries) {
+//   const files = [];
+//   for (const entry of entries) {
+//     if (entry.isDirectory) {
+//       const children = await new Promise((r) => {
+//         entry.createReader().readEntries((e) => { r(e); });
+//       });
+//       files.push(...await recEntries(children));
+//     }
+//     else {
+//       const file = await new Promise((r) => {
+//         entry.file((e) => { r(e); });
+//       });
+//       files.push(file);
+//     }
+//   }
+//   return files;
+// }
 
 function rpytxt(files) {
   const id = [...Array(files.length)].map((_, i) => i);
@@ -835,7 +835,8 @@ function rpytxt(files) {
 
 $(function () {
   let lastChecked = -1;
-  let rpyCnt = 0;
+  let rpyRows = [];
+  let rpyChecks = [];
 
   function updateHeaderCheck() {
     let cnt = 0;
@@ -914,24 +915,37 @@ $(function () {
 
   function appendRows(rows) {
     rows.find(".check").on("click", function (e) {
+      const checked = $(this).prop("checked");
       const now = parseInt($(this).closest("tr").attr("id").match(/\d*$/), 10);
       if (!e.shiftKey || lastChecked < 0 || lastChecked === now || $("#row" + lastChecked).length === 0) {
         lastChecked = now;
+        rpyChecks[now] = checked;
         updateHeaderCheck();
         return;
       }
-      const checked = $(this).prop("checked");
       let cnt = 0;
       $(".check").each(function () {
         const v = parseInt($(this).closest("tr").attr("id").match(/\d*$/), 10);
         if (v === lastChecked || v === now) cnt++;
         if (cnt === 0) return true;
-        if ($(this).is(":visible")) $(this).prop("checked", checked);
+        if ($(this).is(":visible")) {
+          $(this).prop("checked", checked);
+          rpyChecks[v] = checked;
+        }
         if (cnt > 1) return false;
       });
       updateHeaderCheck();
     });
+    rows.find(".check").each(function () {
+      const v = parseInt($(this).closest("tr").attr("id").match(/\d*$/), 10);
+      $(this).prop("checked", rpyChecks[v]);
+    });
     $("#rpyInfo").append(rows);
+    // $(".check").each(function () {
+    //   const v = parseInt($(this).closest("tr").attr("id").match(/\d*$/), 10);
+    //   $(this).prop("checked", rpyChecks[v]);
+    // });
+    updateHeaderCheck();
   }
 
   async function makeRow(file, index) {
@@ -970,14 +984,15 @@ $(function () {
   async function inputFiles(files) {
     const len = files.length;
     if (len === 0) return;
-    const rows = [];
+    const cnt = rpyRows.length;
     for (let i = 0; i < len; i++) {
       $("#pageDisplay").text(`${i + 1}/${len}`);
-      rows.push(await makeRow(files[i], rpyCnt + i));
+      rpyRows.push(await makeRow(files[i], cnt + i));
+      rpyChecks.push(false);
     }
     $("#table").trigger("filterReset").trigger("disablePager");
-    appendRows($(rows.join("")));
-    rpyCnt += len;
+    $("#rpyInfo").empty();
+    appendRows($(rpyRows.join("")));
     $("#pageDisplay").empty();
     // $("#table").trigger("update");
     $("#table").trigger("enablePager").trigger("pagerUpdate").trigger("sortReset");
@@ -1006,14 +1021,16 @@ $(function () {
   // });
 
   $("#inputFile").on("change", async function (e) {
-    if (e.target.webkitEntries.length === 0) {
-      const files = Array.from(e.target.files).filter((f) => /\.rpy$|\.txt$/.test(f.name)).map((f) => [f, f.name]);
-      inputFiles(rpytxt(files));
-      return;
-    }
-    const entries = await recEntries(e.target.webkitEntries);
-    const files = Array.from(entries).filter((f) => /\.rpy$|\.txt$/.test(f.name)).map((f) => [f, f.webkitRelativePath.length ? f.webkitRelativePath : f.name]);
+    const files = Array.from(e.target.files).filter((f) => /\.rpy$|\.txt$/.test(f.name)).map((f) => [f, f.name]);
     inputFiles(rpytxt(files));
+    // if (e.target.webkitEntries.length === 0) {
+    //   const files = Array.from(e.target.files).filter((f) => /\.rpy$|\.txt$/.test(f.name)).map((f) => [f, f.name]);
+    //   inputFiles(rpytxt(files));
+    //   return;
+    // }
+    // const entries = await recEntries(e.target.webkitEntries);
+    // const files = Array.from(entries).filter((f) => /\.rpy$|\.txt$/.test(f.name)).map((f) => [f, f.webkitRelativePath.length ? f.webkitRelativePath : f.name]);
+    // inputFiles(rpytxt(files));
   });
 
   $("#inputDir").on("change", function (e) {
@@ -1061,7 +1078,9 @@ $(function () {
     const checked = $(this).prop("checked");
     $(".check").each(function () {
       if ($(this).is(":hidden")) return true;
+      const v = parseInt($(this).closest("tr").attr("id").match(/\d*$/), 10);
       $(this).prop("checked", checked);
+      rpyChecks[v] = checked;
     });
     updateHeaderCheck();
   });
